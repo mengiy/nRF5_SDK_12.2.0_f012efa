@@ -37,6 +37,7 @@
 #include "app_util_platform.h"
 #include "bsp.h"
 #include "bsp_btn_ble.h"
+#include "nrf_delay.h"
 
 #define IS_SRVC_CHANGED_CHARACT_PRESENT 0                                           /**< Include the service_changed characteristic. If not enabled, the server's database cannot be changed for the lifetime of the device. */
 
@@ -586,6 +587,7 @@ static void power_manage(void)
 static void simple_timer_timeout_handler(void * p_context)
 {
     printf("\r\timer-out\r\n");
+    nrf_gpio_pin_toggle(17);
 }
 
 void clocks_start( void )
@@ -698,6 +700,7 @@ int main(void)
 }
 #endif
 
+#if 0
 int main(void)
 {
 	crystal_16m_init();
@@ -712,6 +715,84 @@ int main(void)
 	
 	while(1);
 }
+#endif
+
+static void flash_word_read(uint32_t * page_address, uint32_t * p_out_array, uint32_t p_word_count)
+{
+    // Turn on flash write enable and wait until the NVMC is ready:
+    NRF_NVMC->CONFIG = (NVMC_CONFIG_WEN_Ren << NVMC_CONFIG_WEN_Pos);
+
+    while (NRF_NVMC->READY == NVMC_READY_READY_Busy)
+    {
+        // Do nothing.
+    }
+
+    memcpy(p_out_array, page_address, (p_word_count << 2));
+
+    while (NRF_NVMC->READY == NVMC_READY_READY_Busy)
+    {
+        // Do nothing.
+    }
+}
+
+#if 1
+int main(void)
+{
+    uint32_t err_code;
+    bool erase_bonds;
+    uint32_t array;
+
+    flash_word_read((uint32_t *)0x1b000, &array, 1);
+    nrf_gpio_cfg_output(17);
+    nrf_gpio_pin_toggle(17);
+
+    // Initialize.
+    APP_TIMER_INIT(APP_TIMER_PRESCALER, APP_TIMER_OP_QUEUE_SIZE, false);
+    uart_init();
+
+//    buttons_leds_init(&erase_bonds);
+    ble_stack_init();
+    gap_params_init();
+    services_init();
+    advertising_init();
+    conn_params_init();
+
+//    printf("\r\nUART Start!\r\n");
+//    printf("array=0x%08x\r\n", array);
+//    printf("flash page size:0x%x\r\n", (uint16_t)NRF_FICR->CODEPAGESIZE);
+    err_code = ble_advertising_start(BLE_ADV_MODE_FAST);
+    APP_ERROR_CHECK(err_code);
+
+    app_timer_create(&simple_timer_id, APP_TIMER_MODE_REPEATED, simple_timer_timeout_handler);
+    app_timer_start(simple_timer_id, APP_TIMER_TICKS(100,APP_TIMER_PRESCALER), NULL);
+
+    // Enter main loop.
+    nrf_gpio_pin_toggle(17);
+    for (;;)
+    {
+        power_manage();
+    }
+}
+#endif
+
+#if 0
+int main(void)
+{
+    uint32_t array;
+
+    flash_word_read((uint32_t *)0x1b000, &array, 1);
+    nrf_gpio_cfg_output(17);
+    nrf_gpio_pin_toggle(17);
+    uart_init();
+    printf("array=%x\r\n", array);
+
+    while(true)
+    {
+        nrf_delay_ms(500);
+        nrf_gpio_pin_toggle(17);
+    }
+}
+#endif
 /**
  * @}
  */
